@@ -17,11 +17,11 @@ TICKERS = [
 ]
 
 # Analysis period — we want last trading days of month inside this window
-analysis_start = "2025-01-01"
+analysis_start = "2007-01-01"
 analysis_end   = "2026-03-10"   # exclusive upper bound
 
 # Fetch extra history so 252-day lookback works from day 1
-fetch_start    = "2023-12-01"   # ~14 months before analysis_start — safe buffer
+fetch_start    = "2005-11-01"   # ~14 months before analysis_start — safe buffer
 
 INITIAL_VALUE = 100_000
 VALUE_PER_BUCKET = INITIAL_VALUE // 3
@@ -29,6 +29,10 @@ VALUE_PER_BUCKET = INITIAL_VALUE // 3
 # Momentum periods in **trading days**
 PERIODS = [63, 126, 252]
 PERIOD_NAMES = ["63", "126", "252"]
+
+# suffix gets appended to each csv file
+
+FILE_SUFFIX = "2005C"
 
 OUTPUT_DIR = Path("/Users/peterkay/Downloads/backtestFiles")
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -179,7 +183,9 @@ history_df = history_df.sort_values(["As of Date", "Papa Avg"], ascending=[True,
 # Make dates human-readable in the CSV (reviewers love this)
 history_df["As of Date"] = history_df["As of Date"].dt.strftime("%m/%d/%Y")
 
-history_df.to_csv(OUTPUT_DIR / "historyData.csv", index=False)
+dataFileName = "historyData" + FILE_SUFFIX + ".csv"
+
+history_df.to_csv(OUTPUT_DIR / dataFileName, index=False)
 print(f"\nSaved historyData.csv  ({len(history_df)} rows)")
 
 # ────────────────────────────────────────────────
@@ -207,7 +213,10 @@ for as_of_str in history_df["As of Date"].unique():
     })
 
 portfolio_df = pd.DataFrame(portfolio_rows)
-portfolio_df.to_csv(OUTPUT_DIR / "portfolioList.csv", index=False)
+
+dataFileName = "portfolioList" + FILE_SUFFIX + ".csv"
+
+portfolio_df.to_csv(OUTPUT_DIR / dataFileName, index=False)
 print(f"Saved portfolioList.csv  ({len(portfolio_df)} months)")
 
 # ────────────────────────────────────────────────
@@ -275,7 +284,8 @@ for _, row in portfolio_df.iterrows():
     prev_qtys = qtys
 
 backtest_df = pd.DataFrame(backtest_rows)
-backtest_df.to_csv(OUTPUT_DIR / "backtestResults.csv", index=False)
+dataFileName = "backtestResults" + FILE_SUFFIX + ".csv"
+backtest_df.to_csv(OUTPUT_DIR / dataFileName, index=False)
 print(f"Saved backtestResults.csv  ({len(backtest_df)} rows)")
 
 print("\nFinished! Check folder:", OUTPUT_DIR.resolve())
