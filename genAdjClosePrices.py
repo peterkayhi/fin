@@ -41,10 +41,17 @@ def generate_etf_adjusted_closes_csv(
     )
     
     # Extract just the Adjusted Close (it's renamed to 'Close' when auto_adjust=True)
-    if len(tickers) == 1:
-        prices = df['Close'].to_frame(name=tickers[0])
-    else:
-        prices = df['Close']
+    # if len(tickers) == 1:
+    #    prices = df['Close'].to_frame(name=tickers[0])
+    # else:
+    #    prices = df['Close']
+
+    # Extract adjusted closes — works for both single and multiple tickers
+    prices = df['Close']
+
+    # If it's a Series (single ticker case), convert to DataFrame with correct name
+    if isinstance(prices, pd.Series):    
+        prices = prices.to_frame(name=tickers[0])
     
     # Keep only the columns in the exact order you passed
     prices = prices[tickers]
@@ -74,13 +81,17 @@ def generate_etf_adjusted_closes_csv(
 # ────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    
     tickers = ["VTV", "VUG", "VIOV", "VIOG", "VEA", "VWO", "VNQ", "PDBC", "IAU", "EDV", "VGIT", "VCLT", "BNDX"]
     
+
+
+
     result = generate_etf_adjusted_closes_csv(
-        start_date='2025-01-01',
+        start_date='2025-11-01',
         end_date='2026-03-03',           
         tickers=tickers,
-        output_file = "/Users/peterkay/Downloads/etfmar-2026.csv"
+        output_file = "/Users/peterkay/Downloads/sample2025-2026.csv"
     )
     
     print("\nFirst few rows of the result:")
