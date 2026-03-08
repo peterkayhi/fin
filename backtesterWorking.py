@@ -17,11 +17,11 @@ TICKERS = [
 ]
 
 # Analysis period — we want last trading days of month inside this window
-analysis_start = "2007-01-01"
-analysis_end   = "2026-03-10"   # exclusive upper bound
+analysis_start = "2025-01-31"
+analysis_end   = "2026-02-27"   # exclusive upper bound
 
 # Fetch extra history so 252-day lookback works from day 1
-fetch_start    = "2005-11-01"   # ~14 months before analysis_start — safe buffer
+fetch_start    = "2024-01-01"   # ~14 months before analysis_start — safe buffer
 
 INITIAL_VALUE = 100_000
 VALUE_PER_BUCKET = INITIAL_VALUE // 3
@@ -32,7 +32,7 @@ PERIOD_NAMES = ["63", "126", "252"]
 
 # suffix gets appended to each csv file
 
-FILE_SUFFIX = "2005C"
+FILE_SUFFIX = "2025backtest"
 
 OUTPUT_DIR = Path("/Users/peterkay/Downloads/backtestFiles")
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -262,6 +262,23 @@ for _, row in portfolio_df.iterrows():
     for i in range(3):
         values[i] = round(qtys[i] * curr_closes[i])
     
+    total = sum(values)
+
+    # grok insert rebalancing code here and use these comments as a guide for the logic:
+
+    # first compute target amount which is 1/3 of total portfolio value at this point in time e.g. target = total / 3
+    #     
+    # for each bucket e.g. for i in range(3):
+
+    # then for each bucket, compute the absolute percentage difference between current value and target e.g. diff_pct = abs(values[i] - target) / target
+
+    # if diff_pct > REBALANCE_THRESHOLD, we rebalance all 3 buckets by resetting the qty to be target / current price e.g. qtys[i] = int(target // curr_closes[i]) for all i in range(3)
+
+    # recompute values after potential rebalance and total after rebalance
+
+    # grok this ends the rebalance logic comment block
+
+
     total = sum(values)
     
     # Append row with formatting
