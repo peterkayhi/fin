@@ -18,7 +18,7 @@ TICKERS = [
 ]
 
 analysis_start = "2007-10-31"   # inclusive
-analysis_end   = "2008-01-30"   # exclusive
+analysis_end   = "2009-02-28"   # exclusive
 
 # Fetch extra history so 252-day lookback is valid from first analysis day
 fetch_start    = "2006-08-01"   # ~13 months buffer before analysis_start
