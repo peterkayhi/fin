@@ -1,7 +1,7 @@
-# daily_momentum_backtester.py
+# backtesterDaily.py
 # Daily momentum ETF rotation backtester with portfolio-level threshold rebalancing
-# Ranks every trading day, holds top 3, keeps qty if ticker unchanged, else reinvests proceeds
-# Triggers full portfolio rebalance if any bucket drifts > threshold from equal weight
+# Adapted from monthly version: now runs ranking + rotation + rebalance check every trading day
+# Keeps integer shares, same bucket logic, same 3 output CSVs
 
 import pandas as pd
 import numpy as np
@@ -26,88 +26,88 @@ fetch_start    = "2006-08-01"   # ~13 months buffer before analysis_start
 INITIAL_VALUE = 100_000
 VALUE_PER_BUCKET = INITIAL_VALUE // 3
 
-# Momentum lookbacks in **trading days**
+# Momentum periods in **trading days**
 PERIODS = [63, 126, 252]
-PERIOD_NAMES = ["63", "126", "252"]  # only used if saving full history
+PERIOD_NAMES = ["63", "126", "252"]
 
-REBALANCE_THRESHOLD = 0.20  # 20% drift → full rebalance
+REBALANCE_THRESHOLD = 0.20
 
-FILE_SUFFIX = "2007dailyRebalancing"
+FILE_SUFFIX = "2007-2008"
 
 OUTPUT_DIR = Path("/Users/peterkay/Downloads/backtestFiles")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 # ────────────────────────────────────────────────
-# 1. Download adjusted close prices
+# 1. Download adjusted closes
 # ────────────────────────────────────────────────
 
-print("Downloading adjusted close data...")
+print("Downloading data (auto_adjust=True for dividend/split adjusted closes)...")
 data = yf.download(
     tickers=TICKERS,
     start=fetch_start,
     end=analysis_end,
-    auto_adjust=True,          # dividends & splits adjusted
+    auto_adjust=True,
     progress=True
 )
 
-# Extract adjusted Close
 if "Close" in data.columns.levels[0]:
     adj_close = data["Close"]
 else:
-    raise ValueError("No 'Close' column found in downloaded data")
+    raise ValueError("Could not find 'Close' in downloaded data")
 
 print(f"Downloaded shape: {adj_close.shape}")
 print(f"Date range: {adj_close.index.min().date()} → {adj_close.index.max().date()}")
 
-# Filter to analysis period
-analysis_dates = adj_close.index[
+# All trading dates in analysis window
+trading_dates = adj_close.index[
     (adj_close.index >= pd.to_datetime(analysis_start)) &
     (adj_close.index < pd.to_datetime(analysis_end))
 ]
 
-print(f"\n{len(analysis_dates)} trading days in analysis window")
+print(f"\nFound {len(trading_dates)} trading days in analysis period")
 
 # ────────────────────────────────────────────────
-# 2. Daily backtest loop
+# 2. Build historyData — momentum for every trading day
 # ────────────────────────────────────────────────
 
-backtest_rows = []
-
-prev_tickers = [None, None, None]
-prev_qtys    = [0.0, 0.0, 0.0]   # use float so we don't lose pennies on rotation
+rows = []
 
 min_lookback = max(PERIODS)  # 252
 
-for as_of_date in analysis_dates:
+for as_of_date in trading_dates:
 
+    # Skip days without enough history
     idx = adj_close.index.get_loc(as_of_date)
-
     if idx < min_lookback:
-        continue  # not enough history yet
+        continue
 
-    # Compute momentum for all valid tickers today
-    momentum_list = []
+    print(f"  Processing {as_of_date.date()} ... ", end="")
 
     for ticker in TICKERS:
         if ticker not in adj_close.columns:
             continue
 
         current_close = adj_close.loc[as_of_date, ticker]
-        if pd.isna(current_close) or current_close <= 0:
+        if pd.isna(current_close):
             continue
 
-        gains = []
-        valid = True
+        past_dates  = []
+        past_closes = []
+        gains       = []
 
+        valid = True
         for days_back in PERIODS:
-            past_idx = idx - days_back
+            past_idx   = idx - days_back
+            past_date  = adj_close.index[past_idx]
             past_close = adj_close.iloc[past_idx][ticker]
 
-            if pd.isna(past_close) or past_close <= 0:
+            if pd.isna(past_close) or past_close == 0:
                 valid = False
                 break
 
             gain_pct = (current_close / past_close - 1) * 100
+            past_dates.append(past_date)
+            past_closes.append(past_close)
             gains.append(gain_pct)
 
         if not valid:
@@ -115,107 +115,145 @@ for as_of_date in analysis_dates:
 
         papa_avg = np.mean(gains)
 
-        momentum_list.append({
+        row = {
             "Ticker": ticker,
-            "Close": current_close,
-            "Papa Avg": papa_avg
-        })
+            "As of Date": as_of_date,
+            "Close": round(float(current_close), 2),
+            "Papa Avg": round(papa_avg, 2),
+        }
 
-    if len(momentum_list) < 3:
-        print(f"Skipping {as_of_date.date()}: only {len(momentum_list)} valid tickers")
+        for i, name in enumerate(PERIOD_NAMES):
+            row[name]                = past_dates[i].strftime("%m/%d/%Y")
+            row[f"{name} Day Close"] = round(float(past_closes[i]), 2)
+            row[f"{name} day gain"]  = round(gains[i], 2)
+
+        rows.append(row)
+
+    print("done")
+
+if not rows:
+    raise ValueError("No valid momentum rows generated — check data / lookbacks")
+
+history_df = pd.DataFrame(rows)
+history_df = history_df.sort_values(["As of Date", "Papa Avg"], ascending=[True, False])
+history_df["As of Date"] = history_df["As of Date"].dt.strftime("%m/%d/%Y")
+
+dataFileName = "historyData" + FILE_SUFFIX + ".csv"
+history_df.to_csv(OUTPUT_DIR / dataFileName, index=False)
+print(f"\nSaved historyData.csv  ({len(history_df)} rows)")
+
+# ────────────────────────────────────────────────
+# 3. portfolioList — top 3 per day
+# ────────────────────────────────────────────────
+
+portfolio_rows = []
+
+for as_of_str in history_df["As of Date"].unique():
+    day_df = history_df[history_df["As of Date"] == as_of_str]
+    if len(day_df) < 3:
+        print(f"Warning: only {len(day_df)} tickers for {as_of_str}")
         continue
 
-    # Rank → take top 3
-    today_df = pd.DataFrame(momentum_list)
-    today_df = today_df.sort_values("Papa Avg", ascending=False).head(3).reset_index(drop=True)
+    top3 = day_df.head(3)
 
-    curr_tickers = today_df["Ticker"].tolist()
-    curr_closes  = today_df["Close"].tolist()
+    portfolio_rows.append({
+        "As of Date": as_of_str,
+        "Ticker 1": top3.iloc[0]["Ticker"],
+        "Ticker 1 Close": top3.iloc[0]["Close"],
+        "Ticker 2": top3.iloc[1]["Ticker"],
+        "Ticker 2 Close": top3.iloc[1]["Close"],
+        "Ticker 3": top3.iloc[2]["Ticker"],
+        "Ticker 3 Close": top3.iloc[2]["Close"],
+    })
 
-    # ── Position management per bucket ───────────────────────────
-    qtys = [0.0, 0.0, 0.0]
-    values = [0.0, 0.0, 0.0]
+portfolio_df = pd.DataFrame(portfolio_rows)
 
+dataFileName = "portfolioList" + FILE_SUFFIX + ".csv"
+portfolio_df.to_csv(OUTPUT_DIR / dataFileName, index=False)
+print(f"Saved portfolioList.csv  ({len(portfolio_df)} days)")
+
+# ────────────────────────────────────────────────
+# 4. backtestResults — same bucket logic + rebalancing
+# ────────────────────────────────────────────────
+
+backtest_rows = []
+
+prev_tickers = [None, None, None]
+prev_qtys = [0, 0, 0]
+
+for _, row in portfolio_df.iterrows():
+    as_of_str = row["As of Date"]
+    as_of_date = pd.to_datetime(as_of_str, format="%m/%d/%Y")
+    
+    curr_tickers = [row["Ticker 1"], row["Ticker 2"], row["Ticker 3"]]
+    curr_closes = [row["Ticker 1 Close"], row["Ticker 2 Close"], row["Ticker 3 Close"]]
+    
+    qtys = [0, 0, 0]
+    values = [0, 0, 0]
+    
     for i in range(3):
         curr_ticker = curr_tickers[i]
         curr_close = curr_closes[i]
-
+        
         if prev_tickers[i] is None:
-            # First allocation
-            qtys[i] = VALUE_PER_BUCKET / curr_close   # float qty ok for backtest
+            qtys[i] = VALUE_PER_BUCKET // curr_close
+            print(f"Initial buy {as_of_str} B{i+1}: {curr_ticker} {qtys[i]} shares")
         elif curr_ticker == prev_tickers[i]:
-            # Keep same position size
             qtys[i] = prev_qtys[i]
         else:
-            # Sell old → buy new with full proceeds
             old_ticker = prev_tickers[i]
             old_close = adj_close.loc[as_of_date, old_ticker]
-
-            if pd.isna(old_close) or old_close <= 0:
-                proceeds = 0.0
-            else:
-                proceeds = prev_qtys[i] * old_close
-
-            qtys[i] = proceeds / curr_close
-
-    # Current market values after possible rotation
+            current_value = prev_qtys[i] * old_close
+            qtys[i] = int(current_value // curr_close)
+            print(f"Rotate {as_of_str} B{i+1}: {old_ticker} → {curr_ticker} {qtys[i]} shares (proceeds ~{current_value:.0f})")
+    
+    # Current values after rotation/keep
     for i in range(3):
-        values[i] = qtys[i] * curr_closes[i]
-
+        values[i] = round(qtys[i] * curr_closes[i])
+    
     total = sum(values)
 
-    # ── Check for portfolio drift & rebalance if needed ─────────
-    if total > 0:
-        target = total / 3
-        needs_rebalance = False
-        for val in values:
-            if abs(val - target) / target > REBALANCE_THRESHOLD:
-                needs_rebalance = True
-                break
+    # Portfolio-level rebalancing check
+    target = total / 3
+    needs_rebalance = False
+    for i in range(3):
+        diff_pct = abs(values[i] - target) / target
+        if diff_pct > REBALANCE_THRESHOLD:
+            needs_rebalance = True
+            break
 
-        if needs_rebalance:
-            for i in range(3):
-                qtys[i] = target / curr_closes[i]
-            # Recalculate values after forced equal weighting
-            for i in range(3):
-                values[i] = qtys[i] * curr_closes[i]
-            total = sum(values)
+    if needs_rebalance:
+        print(f"REBALANCE triggered {as_of_str} | drift > {REBALANCE_THRESHOLD:.0%}")
+        
+        for i in range(3):
+            qtys[i] = int(target // curr_closes[i])
+        
+        for i in range(3):
+            values[i] = round(qtys[i] * curr_closes[i])
+        
+        total = sum(values)
+        print(f"  After rebalance → values: {values}  total: {total:,.0f}")
 
-    # ── Record row ──────────────────────────────────────────────
     backtest_rows.append({
-        "As of Date": as_of_date.strftime("%Y-%m-%d"),
+        "As of Date": as_of_str,
         "B1 Ticker": curr_tickers[0],
-        "B1 Qty": round(qtys[0], 4),     # more precision for daily
-        "B1 Value": round(values[0]),
+        "B1 Qty": qtys[0],
+        "B1 Value": f"${values[0]:,}",
         "B2 Ticker": curr_tickers[1],
-        "B2 Qty": round(qtys[1], 4),
-        "B2 Value": round(values[1]),
+        "B2 Qty": qtys[1],
+        "B2 Value": f"${values[1]:,}",
         "B3 Ticker": curr_tickers[2],
-        "B3 Qty": round(qtys[2], 4),
-        "B3 Value": round(values[2]),
-        "Total Value": round(total)
+        "B3 Qty": qtys[2],
+        "B3 Value": f"${values[2]:,}",
+        "Total Value": f"${total:,}"
     })
-
-    # Carry forward
+    
     prev_tickers = curr_tickers
     prev_qtys = qtys
 
-# ────────────────────────────────────────────────
-# 3. Save results
-# ────────────────────────────────────────────────
+backtest_df = pd.DataFrame(backtest_rows)
+dataFileName = "backtestResults" + FILE_SUFFIX + ".csv"
+backtest_df.to_csv(OUTPUT_DIR / dataFileName, index=False)
+print(f"Saved backtestResults.csv  ({len(backtest_df)} rows)")
 
-if not backtest_rows:
-    print("No backtest rows generated — check data availability / lookback periods")
-else:
-    backtest_df = pd.DataFrame(backtest_rows)
-
-    # Add $ formatting like your original
-    for col in ["B1 Value", "B2 Value", "B3 Value", "Total Value"]:
-        backtest_df[col] = backtest_df[col].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "")
-
-    filename = f"dailyBacktestResults_{FILE_SUFFIX}.csv"
-    backtest_df.to_csv(OUTPUT_DIR / filename, index=False)
-    print(f"\nSaved {len(backtest_df)} rows to: {filename}")
-    print("Folder:", OUTPUT_DIR.resolve())
-
-print("\nDone!")
+print("\nFinished! Check folder:", OUTPUT_DIR.resolve())
