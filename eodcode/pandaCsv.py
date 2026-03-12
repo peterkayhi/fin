@@ -56,13 +56,13 @@ print(df.describe())
 # This enables time-based operations like resampling.
 # errors='coerce' turns invalid dates into NaT (Not a Time).
 # If your column isn't named 'Date', replace it here.
-df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+df['date'] = pd.to_datetime(df['date'], errors='coerce')
 
 # Set 'Date' as the index.
 # df.set_index() makes 'Date' the row labels instead of 0,1,2...
 # Useful for time series data like stocks, so you can slice by date easily.
 # inplace=True modifies the DataFrame directly without creating a copy.
-df.set_index('Date', inplace=True)
+df.set_index('date', inplace=True)
 
 # Sort by index (dates) if not already sorted.
 # df.sort_index() ensures chronological order, ascending=True by default.
