@@ -33,7 +33,7 @@ periods = [63, 126, 252]
 period_names = ['63', '126', '252']
 
 # ← change filename as needed
-output_file = f'/Users/peterkay/Downloads/csv/papabear{start_date.replace("-", "")}to{end_date.replace("-", "")}.csv'
+output_file = f'/Users/peterkay/Downloads/csv/papabear{end_date.replace("-", "")}.csv'
 
 # ────────────────────────────────────────────────
 # DOWNLOAD DATA
@@ -52,8 +52,9 @@ data = yf.download(
 # Extract adjusted closing prices
 # ────────────────────────────────────────────────
 
-print("\nColumns structure:", data.columns)
-print("Data shape:", data.shape)
+# debugging prints
+# print("\nColumns structure:", data.columns)
+# print("Data shape:", data.shape)
 
 if isinstance(data.columns, pd.MultiIndex):
     if 'Close' in data.columns.levels[0]:
@@ -74,7 +75,7 @@ if isinstance(adj_close.columns, pd.MultiIndex):
 elif len(tickers) == 1:
     adj_close = adj_close.to_frame(name=tickers[0])
 
-print("Adjusted close columns:", adj_close.columns.tolist())
+# print("Adjusted close columns:", adj_close.columns.tolist())
 
 # ────────────────────────────────────────────────
 # Prepare trading calendar
@@ -84,7 +85,7 @@ trading_dates = adj_close.index.sort_values()
 trading_dates = trading_dates[trading_dates >= pd.to_datetime(start_date)]
 trading_dates = trading_dates[trading_dates < pd.to_datetime(end_date)]
 
-print(f"Found {len(trading_dates)} trading days in range")
+# print(f"Found {len(trading_dates)} trading days in range")
 
 # ────────────────────────────────────────────────
 # Calculate momentum rows — now for EVERY trading day
@@ -129,7 +130,7 @@ for as_of_date in trading_dates:           # ← changed from monthly_ends
             if not gains:
                 continue
 
-            papa_avg = np.mean(gains)
+            papa_avg = np.mean(gains) # average of whatever periods we calculated
 
             row = {
                 'Symbol': ticker,
@@ -177,10 +178,21 @@ else:
 
     df = df[cols_order]
 
-    df.to_csv(output_file, index=False)
-    print(f"\nSaved {len(df)} rows to {output_file}")
+#    df.to_csv(output_file, index=False)
+#    print(f"\nSaved {len(df)} rows to {output_file}")
 
     # Show only the most recent snapshot for quick feedback
     latest_date = df['As of Date'].iloc[0]
-    print(f"\nMost recent date ({latest_date}) — first 15 rows:")
-    print(df[df['As of Date'] == latest_date].head(15))
+#    print(f"\nMost recent date ({latest_date}) — first 15 rows:")
+#    print(df[df['As of Date'] == latest_date].head(6))
+
+    print(
+    df[df['As of Date'] == latest_date]
+      [['Symbol', 'As of Date', 'Close', 'Papa Avg']]
+      .head(len(tickers)) # show all tickers only for the most recent date
+    )
+
+
+    df[df['As of Date'] == latest_date][['Symbol', 'As of Date', 'Close', 'Papa Avg']].head(len(tickers)).to_csv(output_file, index=False) # save this snippet to csv 
+
+print(f"\nSaved {len(tickers)} rows to {output_file}")
