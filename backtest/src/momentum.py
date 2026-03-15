@@ -272,4 +272,15 @@ def run_momentum(
     backtest_df.to_csv(output_dir / dataFileName, index=False)
     print(f"Saved backtestResults.csv  ({len(backtest_df)} rows)")
 
+    # ────────────────────────────────────────────────
+    # Print just date and results for easy include in Google Sheets
+    # ────────────────────────────────────────────────
+
+    dataFileName = "copyPaste" + file_suffix_param + ".csv"
+    backtest_df[['As of Date', 'Total Value']].to_csv(output_dir / dataFileName, index=False)
+    print(f"Saved copyPaste.csv  ({len(backtest_df)} rows)")
+
+    # ────────────────────────────────────────────────
+    # Done! 
+    # ────────────────────────────────────────────────
     print("\nFinished! Check folder:", output_dir.resolve())
