@@ -17,11 +17,11 @@ TICKERS = [
     "PDBC", "IAU", "EDV", "VGIT", "VCLT", "BNDX"
 ]
 
-analysis_start = "2007-10-31"   # inclusive
-analysis_end   = "2009-02-28"   # exclusive
+analysis_start = "2025-12-30"   # inclusive
+analysis_end   = "2026-03-09"   # exclusive
 
 # Fetch extra history so 252-day lookback is valid from first analysis day
-fetch_start    = "2006-08-01"   # ~13 months buffer before analysis_start
+fetch_start    = "2024-11-01"   # ~13 months buffer before analysis_start
 
 INITIAL_VALUE = 100_000
 VALUE_PER_BUCKET = INITIAL_VALUE // 3

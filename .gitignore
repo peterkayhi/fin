@@ -8,3 +8,25 @@ wheels/
 
 # Virtual environments
 .venv
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Secrets and Credentials (CRITICAL)
+.env
+.env.local
+*.pem
+*.key
+auth.json
+
+# Dependencies (Large folders you don't need on GitHub)
+node_modules/
+venv/
+.venv/
+bin/
+obj/
+
+# Logs and databases
+*.log
+*.sqlite

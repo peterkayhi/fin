@@ -84,14 +84,16 @@ if __name__ == "__main__":
     
     # tickers = ["VTV", "VUG", "VIOV", "VIOG", "VEA", "VWO", "VNQ", "PDBC", "IAU", "EDV", "VGIT", "VCLT", "BNDX"]
     
-    tickers = ["SPY", "BIL"]
-
+#    tickers = ["AVUS", "AVLV", "AVSC", "AVUV"]
+#    tickers = ["VOO", "VONV", "VIOO", "VIOV"]
+    tickers = ["AAPL"]
+#    tickers = ["VWO", "IAU", "VUG"]
 
     result = generate_etf_adjusted_closes_csv(
-        start_date='2007-01-03',
-        end_date='2026-03-06',           
+        start_date='2016-02-01',
+        end_date='2026-02-15',           
         tickers=tickers,
-        output_file = "/Users/peterkay/Downloads/SPY-BIL2007-2026.csv"
+        output_file = "/Users/peterkay/Downloads/csv/aapl-2016-2026.csv"
     )
     
     print("\nFirst few rows of the result:")

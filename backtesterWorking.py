@@ -12,10 +12,13 @@ from pathlib import Path
 #           CONFIGURATION
 # ────────────────────────────────────────────────
 
-TICKERS = [
-    "VTV", "VUG", "VIOV", "VIOG", "VEA", "VWO", "VNQ",
-    "PDBC", "IAU", "EDV", "VGIT", "VCLT", "BNDX"
-]
+#TICKERS = [
+#    "VTV", "VUG", "VIOV", "VIOG", "VEA", "VWO", "VNQ",
+#    "PDBC", "IAU", "EDV", "VGIT", "VCLT", "BNDX"
+# ]
+
+TICKERS = ["AVUS", "AVLV", "AVSC", "AVUV"]
+
 
 # Analysis period — we want last trading days of month inside this window
 analysis_start = "2007-01-01"   # inclusive lower bound
@@ -35,7 +38,7 @@ PERIOD_NAMES = ["63", "126", "252"]
 REBALANCE_THRESHOLD = 0.20
 
 # suffix gets appended to each csv file
-FILE_SUFFIX = "2007rebalancing"
+FILE_SUFFIX = "4fundsMerriman"
 
 OUTPUT_DIR = Path("/Users/peterkay/Downloads/backtestFiles")
 OUTPUT_DIR.mkdir(exist_ok=True)

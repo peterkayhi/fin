@@ -8,13 +8,13 @@ import config as cfg
 from eodhd import APIClient
 import pandas as pd
 
-FROM_DATE = "2016-01-01"
-TO_DATE = "2016-01-15"
+FROM_DATE = "2016-02-01"
+TO_DATE = "2026-02-13"
 SYMBOL = 'AAPL.US'
 PERIOD = "d"
 ORDER = "a"
 
-DATAFILE = "aapl2016.csv"
+DATAFILE = "aapl2016-2026eodhd.csv"
 FOLDER = "/Users/peterkay/Downloads/csv/"
 
 if __name__ == "__main__":

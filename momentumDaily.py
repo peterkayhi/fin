@@ -13,18 +13,18 @@ tickers = [
 ]
 
 # Analysis period (trading days inside this range)
-start_date = '2007-10-31'
-end_date   = '2009-01-30'   # exclusive upper bound
+start_date = '2025-12-30'
+end_date   = '2026-03-09'   # exclusive upper bound
 
 # Fetch extra history so we can calculate 252 trading days back
-fetch_start = '2006-08-01'
+fetch_start = '2024-11-01'
 
 # Lookback periods in trading days
 periods = [63, 126, 252]
 period_names = ['63', '126', '252']
 
 # ← change filename as needed
-output_file = '/Users/peterkay/Downloads/momentum_daily.csv'  
+output_file = '/Users/peterkay/Downloads/dailyMomen20260309.csv'  
 
 # ────────────────────────────────────────────────
 # DOWNLOAD DATA
