@@ -11,7 +11,6 @@ Leaner version of momentum.py with more comments and explanations for educationa
 import pandas as pd
 import yfinance as yf
 import numpy as np
-import matplotlib.pyplot as plt
 from datetime import datetime
 
 # =============================================================================
@@ -27,6 +26,7 @@ start_date = "2016-01-01"      # <-- your desired backtest start
 end_date   = datetime.today().strftime("%Y-%m-%d")
 
 top_count = 3 # how many top assets to balance?
+value_start = 100_000 # starting porfolio value
 
 # =============================================================================
 # DOWNLOAD WITH MOMENTUM LOOKBACK BUFFER
@@ -82,28 +82,72 @@ avg_momentum = (mom_3 + mom_6 + mom_12) / 3
 # =============================================================================
 
 
-ticker_list = [f"t{i}" for i in range(1, top_count + 1)] # build list of ticker cols e.g. t1, t2, t3 etc
-price_list = [f"p{i}" for i in range(1, top_count + 1)]  # list of price cols e.g. p1, p2, p3, etc
+ticker_cols = [f"t{i}" for i in range(1, top_count + 1)] # build list of ticker cols e.g. t1, t2, t3 etc
+price_cols = [f"p{i}" for i in range(1, top_count + 1)]  # list of price cols e.g. p1, p2, p3, etc
 
 # create empty dataframes to handle top tickers and their prices
 
-top_ticks = pd.DataFrame(index=avg_momentum.index, columns=ticker_list)
-top_close = pd.DataFrame(index=avg_momentum.index, columns=price_list)
+top_ticks = pd.DataFrame(index=avg_momentum.index, columns=ticker_cols)
+top_close = pd.DataFrame(index=avg_momentum.index, columns=price_cols)
 
 
 for i in range(1, len(avg_momentum)):
-    # For each month starting from the second row (i=1), we look back at the previous month's momentum to determine the top tickers. We then assign those tickers a weight of 1/3 for the current month and create a table of weights that we will later apply to the returns. 
+    # For each month starting from the second row (i=1), we look back at the previous month's momentum to determine the top tickers. 
     #
     # the len() function in panda returns the number of rows in avg_momentum, so the loop iterates through each month starting from the second one (since the first month has no prior momentum data). Inside the loop, we use .iloc[i-1] to access the previous month's momentum data, find the top 3 tickers with .nlargest(3), and then store the values for later use 
 
     prev_mom = avg_momentum.iloc[i-1] # Get the previous month's momentum
     ticks = prev_mom.nlargest(top_count) # get our top tickers in a series that includes the date
-    top_ticks.loc[ticks.name, ticker_list] = ticks.index # save those tickers
+    top_ticks.loc[ticks.name, ticker_cols] = ticks.index # save those tickers
     prices = monthly_prices.loc[ticks.name][ticks.index] # then lookup the prices for the date [ticks.name] for the tickers [ticks.index]
-    top_close.loc[ticks.name, price_list] = prices.values # and store those prices in their corresponding puka 
+    top_close.loc[ticks.name, price_cols] = prices.values # and store those prices in their corresponding puka 
     pass # end of loop
 
+#===========
+# calculate holdings
 
-# i have an index opject Index(['EDV', 'IAU', 'VNQ'], dtype='str', name='Ticker')
+# create value and shares tables
+val_cols = [f"v{i}" for i in range(1, top_count + 1)]  # value of shares e.g. v1, v2, v3
+share_cols = [f"s{i}" for i in range(1, top_count + 1)]  # shares held  e.g. s1, s2, s3
 
-print("done!")
+value = pd.DataFrame(index=avg_momentum.index, columns=val_cols)
+shares = pd.DataFrame(index=avg_momentum.index, columns=share_cols)
+
+# build df of any month where tickers have changed 
+# 
+
+any_changes = top_ticks.ne(top_ticks.shift(1)).any(axis=1)
+
+# value = shares * price
+#
+# for each month
+#   first month logic:
+#       build row
+#           value [each top_count] = start_portfolio_value / top_count
+#           shares [each top_count] = value / share price
+#   for each top count
+#       value[this month] = this month price of last month top tick * shares
+#       if top_ticks[prev month] <> top_ticks[month] # the momentum has change
+#            shares [this month] = value[this month] / price of this month top tick
+#       <rebalance logic>
+
+for month, adj_close in top_close.iterrows(): # iterate through value df, idx holds the index and row holds the series (row) of value df
+    # print(f"month:{month} \n adj close:{adj_close}")
+#    for column in range(top_count): # each column in the tables
+    if top_close.index.get_loc(month) == 0 : # are we on 1st row
+        value.loc[month] = value_start / top_count # divide up value by number of buckets
+        pass
+    else:  # all but the 1st row 
+        # this monthy's value is last months shares * this month's price of last month's ticker adj close of those shares
+        value.loc[month] = shares.shift(1).loc[month].values * monthly_prices.loc[month][top_ticks.shift(1).loc[month]].values  # top_ticks.shift1 gets last month's tickers which then looks up this month's prices in monthly_prices   
+    if any_changes[month]: # any changed tickers this month?
+        # yes, sell what we have and buy the new ones on this month's closing price
+        # print(f"Value:{value.loc[month]} \n preShares:{shares.loc[month]} \n adj_close:{adj_close}")    
+        shares.loc[month, share_cols] = value.loc[month].values / adj_close.values
+    else: # no changes - just carry forward the shares we have
+        shares.loc[month] = shares.shift(1).loc[month]
+        pass
+    # print(f"Value:{value.loc[month]} \n Shares:{shares.loc[month]} \n ")
+    # bug - share amounts don't change 
+    pass
+    
