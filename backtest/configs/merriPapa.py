@@ -7,15 +7,15 @@ from pathlib import Path
 from datetime import date
 # Make backtest/ the root for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # parents[1] = backtest/
-from src.momentum import run_momentum
+from src.papaSrc import run_papa
 
 CONFIG = {
     # avantis "tickers_param": ["AVUS", "AVLV", "AVSC", "AVUV"],
     "tickers_param": [
         "VOO", "VONV", "VIOV", "VIOO", 'VTV', 'VUG', 'VIOV', 'VIOG', 'VEA', 'VWO', 'VNQ', 'PDBC', 'IAU', 'EDV', 'VGIT', 'VCLT', 'BNDX'
     ],
-    "file_suffix_param": "merripapa"
+    "file_suffix_param": "merripapaL"
 }
 
 if __name__ == "__main__":
-    run_momentum(**CONFIG)
+    run_papa(**CONFIG)
