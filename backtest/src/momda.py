@@ -41,6 +41,17 @@ def run_momda (
     output_dir = Path(output_dir_param)
     output_dir.mkdir(exist_ok=True)
 
+
+    # simple output to csv function
+    def save_csv(
+        df: pd.DataFrame, # holds what we'll output
+        file_name: str = "csvFile",
+        dir: str = output_dir, # pathname
+        pref: str = file_prefix # prefix - typicaly the project name
+        ) -> None:
+        df.to_csv(f"{dir}/{pref}{file_name}.csv")
+
+
     # fix top_assets in case we have less tickers than buckets to hold
     top_assets = min(top_assets, len(tickers_param))
     # =============================================================================
@@ -59,7 +70,7 @@ def run_momda (
         progress=False
     )["Close"]
     csvFileName = "yfdata"
-    if verbose: data.to_csv(f"{output_dir}/{file_prefix}{csvFileName}.csv") 
+    if verbose: save_csv(data,"yfdata")
 
     if mda_param > 0:  # if we're doing mda we'll need cash accounts
         cash_df = yf.download(
@@ -88,8 +99,7 @@ def run_momda (
     # use BME instead of ME to get the last business day of the month, which is more accurate for trading purposes since the actual month-end might be a weekend or holiday. BME stands for Business Month End.
     monthly_prices = data.resample("BME").last().dropna(how="all")
 
-    csvFileName = "monthPrices"
-    if verbose: monthly_prices.to_csv(f"{output_dir}/{file_prefix}{csvFileName}.csv")
+    if verbose: save_csv(monthly_prices,"monthPrices")
 
     # monthly_prices.to_csv("/Users/peterkay/Downloads/backtestFiles/papa_bear_monthly_prices.csv") # save monthly data for debugging
 
@@ -144,11 +154,8 @@ def run_momda (
     # trim out dates before the actual start date
     top_close = top_close[top_close.index > pd.to_datetime(start_date)]
     # save 'em
-    csvFileName = "topTics"
-    if verbose: top_ticks.to_csv(f"{output_dir}/{file_prefix}{csvFileName}.csv")
-
-    csvFileName = "topClose"
-    if verbose: top_close.to_csv(f"{output_dir}/{file_prefix}{csvFileName}.csv")
+    if verbose: save_csv(top_ticks,"topTics")
+    if verbose: save_csv(top_close,"topClose")
 
     #===========
     # calculate holdings
@@ -165,8 +172,7 @@ def run_momda (
 
     any_changes = top_ticks.ne(top_ticks.shift(1)).any(axis=1)
 
-    csvFileName = "anyChanges"
-    if verbose: any_changes.to_csv(f"{output_dir}/{file_prefix}{csvFileName}.csv")
+    if verbose: save_csv(any_changes,"anyChanges")
 
     for month, adj_close in top_close.iterrows(): # iterate through top_close df, month holds the index (the date and row holds the series (row) of top_close
         if top_close.index.get_loc(month) == 0 : # are we on 1st row
@@ -186,11 +192,8 @@ def run_momda (
             value.loc[month] = value.loc[month].sum() / top_assets # evenly distribute value
             shares.loc[month, share_cols] = value.loc[month].values / adj_close.values # and buy the shares back
 
-    csvFileName = "value"
-    if verbose: value.to_csv(f"{output_dir}/{file_prefix}{csvFileName}.csv")
-
-    csvFileName = "shares"
-    if verbose: shares.to_csv(f"{output_dir}/{file_prefix}{csvFileName}.csv")
+    if verbose: save_csv(value,"value")
+    if verbose: save_csv(shares,"shares")
 
     #===========
     # finalize data for copy/paste friendly format
@@ -203,5 +206,5 @@ def run_momda (
     csvFileName = "CopyPaste"
     print(f"Exporting Values to {file_prefix}{csvFileName}.csv")
     
-    copy_paste.to_csv(f"{output_dir}/{file_prefix}{csvFileName}.csv")
+    if verbose: save_csv(copy_paste,"CopyPaste")
     print("Done!")
