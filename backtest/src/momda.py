@@ -205,6 +205,6 @@ def run_momda (
     copy_paste.rename(f"{file_prefix}", inplace=True)
     csvFileName = "CopyPaste"
     print(f"Exporting Values to {file_prefix}{csvFileName}.csv")
+    save_csv(copy_paste,"CopyPaste")
     
-    if verbose: save_csv(copy_paste,"CopyPaste")
     print("Done!")
