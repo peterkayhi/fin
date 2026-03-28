@@ -62,19 +62,8 @@ def run_momda (
     # Fix for the bug you spotted: pull extra history so 12-month momentum works from day 1
     print("Downloading...")
     download_start = (pd.to_datetime(start_date) - pd.DateOffset(months=15)).strftime("%Y-%m-%d")
-
-    if use_cache:
-        cache = yfcache() # get our Yahoo data via caching - reduces api call guilt
-        data = cache.get( tickers_param, download_start, end_date).final_df
-    else:  # hit Yahoo api
-        data = yf.download(
-            tickers_param,
-            start=download_start,
-            end=end_date,
-            auto_adjust=True,      # fully adjusted OHLC (Close column is perfect)
-            progress=False
-        )["Close"]
-
+    cache = yfcache() # get our Yahoo data via caching - reduces api call guilt
+    data = cache.get( tickers_param, download_start, end_date, use_cache).final_df
 
     csvFileName = "yfdata"
     if verbose: save_csv(data,"yfdata")
