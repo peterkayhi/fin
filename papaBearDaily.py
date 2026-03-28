@@ -48,7 +48,7 @@ adj_close = cache.get (
     ticker_list=tickers,
     start_date=fetch_start,
     end_date=end_date,
-    skip_cache=False
+    skip_cache=True # the daily papa gets latest data
 ).final_df
 
 # ────────────────────────────────────────────────
