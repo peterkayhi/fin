@@ -11,6 +11,8 @@ import pandas as pd
 import numpy as np
 from datetime import date, datetime, timedelta
 from dateutil.relativedelta import relativedelta
+from yfcache import yfcache
+
 
 # ────────────────────────────────────────────────
 # CONFIG
@@ -23,7 +25,7 @@ tickers = [
 
 # Analysis period — get the last 7 days
 start_date = (date.today() - timedelta(days=7)).isoformat()    # 7 days ago
-end_date   = date.today().isoformat()   # today
+end_date   = (date.today() - timedelta(days=0)).isoformat()   # today
 
 # Fetch extra history so 252-day lookback works from day 1
 fetch_start    = (date.today() - relativedelta(months=14)).isoformat()      # ~14 months before analysis_start — safe buffer
@@ -39,43 +41,15 @@ output_file = f'/Users/peterkay/Downloads/csv/papabear{end_date.replace("-", "")
 # DOWNLOAD DATA
 # ────────────────────────────────────────────────
 
-print("Downloading data from yfinance (auto_adjust=True)...")
-data = yf.download(
-    tickers,
-    start=fetch_start,
-    end=end_date,
-    auto_adjust=True,           # makes 'Close' fully adjusted
-    progress=False
-)
+print("Getting ticker adjusted close (auto_adjust=True)...")
 
-# ────────────────────────────────────────────────
-# Extract adjusted closing prices
-# ────────────────────────────────────────────────
-
-# debugging prints
-# print("\nColumns structure:", data.columns)
-# print("Data shape:", data.shape)
-
-if isinstance(data.columns, pd.MultiIndex):
-    if 'Close' in data.columns.levels[0]:
-        adj_close = data['Close']
-    elif 'Adj Close' in data.columns.levels[0]:
-        adj_close = data['Adj Close']
-    else:
-        raise ValueError("Cannot find 'Close' or 'Adj Close'")
-else:
-    if 'Close' in data.columns:
-        adj_close = data['Close']
-    else:
-        raise ValueError("No 'Close' column found")
-
-# Clean column names to just tickers
-if isinstance(adj_close.columns, pd.MultiIndex):
-    adj_close.columns = adj_close.columns.get_level_values(1)
-elif len(tickers) == 1:
-    adj_close = adj_close.to_frame(name=tickers[0])
-
-# print("Adjusted close columns:", adj_close.columns.tolist())
+cache = yfcache() # initialize caching
+adj_close = cache.get (
+    ticker_list=tickers,
+    start_date=fetch_start,
+    end_date=end_date,
+    skip_cache=False
+).final_df
 
 # ────────────────────────────────────────────────
 # Prepare trading calendar

@@ -14,6 +14,7 @@ import yfinance as yf
 import numpy as np
 from datetime import datetime
 from pathlib import Path
+from yfcache import yfcache
 
 # =============================================================================
 # CONFIGURATION - change these as needed
@@ -34,6 +35,7 @@ def run_momda (
     cash_etf: str = 'BIL',
     file_prefix: str  = "momda",  # suffix gets appended to each csv file
     verbose: bool = False, # outputs lots of csv files along the way
+    use_cache: bool = True, # minimize Yahoo api calls
     output_dir_param: str  = "/Users/peterkay/Downloads/backtestFiles" # directory holding csvs
 ) -> None:
 
@@ -61,25 +63,33 @@ def run_momda (
     print("Downloading...")
     download_start = (pd.to_datetime(start_date) - pd.DateOffset(months=15)).strftime("%Y-%m-%d")
 
-
-    data = yf.download(
-        tickers_param,
-        start=download_start,
-        end=end_date,
-        auto_adjust=True,      # fully adjusted OHLC (Close column is perfect)
-        progress=False
-    )["Close"]
-    csvFileName = "yfdata"
-    if verbose: save_csv(data,"yfdata")
-
-    if mda_param > 0:  # if we're doing mda we'll need cash accounts
-        cash_df = yf.download(
-            cash_etf,
+    if use_cache:
+        cache = yfcache() # get our Yahoo data via caching - reduces api call guilt
+        data = cache.get( tickers_param, download_start, end_date).final_df
+    else:  # hit Yahoo api
+        data = yf.download(
+            tickers_param,
             start=download_start,
             end=end_date,
             auto_adjust=True,      # fully adjusted OHLC (Close column is perfect)
             progress=False
         )["Close"]
+
+
+    csvFileName = "yfdata"
+    if verbose: save_csv(data,"yfdata")
+
+    if mda_param > 0:  # if we're doing mda we'll need cash accounts
+        if use_cache:
+            cash_df = cache.get( [cash_etf], download_start, end_date).final_df
+        else:
+            cash_df = yf.download(
+                cash_etf,
+                start=download_start,
+                end=end_date,
+                auto_adjust=True,      # fully adjusted OHLC (Close column is perfect)
+                progress=False
+            )["Close"]
         cash_cols = [f"{cash_etf}{i}" for i in range(1, top_assets + 1)] # labels for cash df
         data = data.assign(**{col: cash_df for col in cash_cols}) # add a cash account ticker for each bucket (top_assets) to the portfolio - this way under the worst month cash will show up as the best momentum performer.
         mda = data.rolling(mda_param).mean() # store moving day average in another dataframt
@@ -187,8 +197,8 @@ def run_momda (
         else: 
             shares.loc[month] = shares.shift(1).loc[month] # no changes - just carry forward the shares we have
         pass
-        if (value.loc[month].max() - value.loc[month].min()) / value.loc[month].min() > rebalance_trigger:  # we hit the rebalance trigger
-            pass
+        if (value.loc[month].max() - value.loc[month].min()) / value.loc[month].min() >= rebalance_trigger:  # we hit the rebalance trigger
+            if verbose: print(f"Rebalancing on {month}")
             value.loc[month] = value.loc[month].sum() / top_assets # evenly distribute value
             shares.loc[month, share_cols] = value.loc[month].values / adj_close.values # and buy the shares back
 
