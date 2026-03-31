@@ -36,7 +36,7 @@ def run_momda (
     cash_etf: str = 'BIL',
     file_prefix: str  = "momda",  # suffix gets appended to each csv file
     verbose: bool = False, # outputs lots of csv files along the way
-    use_cache: bool = True, # minimize Yahoo api calls
+    skip_cache: bool = False, # use the cache to minimize Yahoo api calls
     output_dir_param: str  = "/Users/peterkay/Downloads/backtestFiles" # directory holding csvs
 ) -> None:
 
@@ -72,7 +72,7 @@ def run_momda (
     # Fix for the bug you spotted: pull extra history so 12-month momentum works from day 1
     download_start = (pd.to_datetime(start_date) - pd.DateOffset(months=15)).strftime("%Y-%m-%d")
     cache = yfcache() # get our Yahoo data via caching - reduces api call guilt
-    dataget = cache.get( tickers_param, download_start, end_date, use_cache)
+    dataget = cache.get( tickers_param, download_start, end_date, skip_cache)
     data = dataget.final_df
     logger.info(f"DL tickers missed: {dataget.missed_tickers}, Needed starts: {dataget.needed_starts}")
 
@@ -80,11 +80,7 @@ def run_momda (
     if verbose: save_csv(data,"yfdata")
 
     if mda_param > 0:  # if we're doing mda we'll need cash accounts
-        if use_cache:
-            cashget = cache.get( [cash_etf], download_start, end_date)
-            cash_df = cashget.final_df
-            logger.info(f"Cash Missed tickers: {cashget.missed_tickers}, Needed starts: {cashget.needed_starts}")
-        else:
+        if skip_cache:
             cash_df = yf.download(
                 cash_etf,
                 start=download_start,
@@ -92,6 +88,11 @@ def run_momda (
                 auto_adjust=True,      # fully adjusted OHLC (Close column is perfect)
                 progress=False
             )["Close"]
+        else:
+            cashget = cache.get( [cash_etf], download_start, end_date)
+            cash_df = cashget.final_df
+            logger.info(f"Cash Missed tickers: {cashget.missed_tickers}, Needed starts: {cashget.needed_starts}")
+
         cash_cols = [f"{cash_etf}{i}" for i in range(1, top_assets + 1)] # labels for cash df
         data = data.assign(**{col: cash_df for col in cash_cols}) # add a cash account ticker for each bucket (top_assets) to the portfolio - this way under the worst month cash will show up as the best momentum performer.
         mda = data.rolling(mda_param).mean() # store moving day average in another dataframt
