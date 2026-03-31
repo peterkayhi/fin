@@ -3,7 +3,7 @@ import pandas as pd
 import duckdb
 from datetime import date
 import os
-import io
+import logging
 from typing import NamedTuple, List
 
 class YfCacheResult(NamedTuple):
@@ -29,6 +29,18 @@ class yfcache:
             )
         """)
 
+        # Setup a dedicated logger for yfcache to avoid configuration conflicts
+        self.logger = logging.getLogger("yfcache")
+        if not self.logger.handlers:
+            self.logger.setLevel(logging.INFO)
+            self.logger.propagate = False  # Keep cache logs isolated from the root logger
+            formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+            
+            for handler in [logging.FileHandler("/Users/peterkay/Downloads/backtestFiles/yfcache.app.log", mode='a', encoding='utf-8'), logging.StreamHandler()]:
+                handler.setFormatter(formatter)
+                self.logger.addHandler(handler)
+        self.logger.info(f"yfcache initialized with database at {db_path}")
+
     def _key(self, ticker_list, start_date, end_date):
         # 1. Standardize ticker_list to list and create sorted key string
         if isinstance(ticker_list, str):
@@ -43,11 +55,18 @@ class yfcache:
             
         # Ensure chronological order to prevent SQL BETWEEN and date_range failures
         s, e = sorted([start_date, end_date])
+        # if end_date is today then we'll change it to yesterday
+        if e == date.today().strftime("%Y-%m-%d"):
+            e = (date.today() - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
+        # adjust s & e to start on a business day
+        s = pd.offsets.BDay().rollback(pd.to_datetime(s)).strftime("%Y-%m-%d")
+        e = pd.offsets.BDay().rollback(pd.to_datetime(e)).strftime("%Y-%m-%d")
         return ticker_list, tickers_key, s, e
-
+    
     def get(self, ticker_list, start_date, end_date, skip_cache = False):
         # Centralized input cleaning and standardization via _key
         ticker_list, _, start_date, end_date = self._key(ticker_list, start_date, end_date)
+        self.logger.info(f"Requesting data for tickers: {ticker_list} from {start_date} to {end_date}")
 
         # 1. Identify which tickers need a cache update
         missed_tickers = []
@@ -74,10 +93,11 @@ class yfcache:
 
         # 2. Fetch and merge missing data or if we're explicitly told to skip caching
         if missed_tickers:
+            self.logger.info(f"Tickers missing or needing update: {missed_tickers} with needed starts: {needed_starts}")
             # Use the earliest start date required by any ticker in the missing batch
             download_start = min(needed_starts).strftime("%Y-%m-%d")
-            today = date.today().strftime("%Y-%m-%d")
-            new_data = yf.download(missed_tickers, start=download_start, end=today, auto_adjust=True, progress=False)
+            yesterday = (date.today() - pd.Timedelta(days=1)).strftime("%Y-%m-%d") # Yahoo Finance may not have today's data yet, so we use yesterday as the end date for downloads
+            new_data = yf.download(missed_tickers, start=download_start, end=yesterday, auto_adjust=True, progress=False)
             
             if not new_data.empty:
                 # Extract Close prices (auto_adjust moves Adj Close here)
@@ -89,21 +109,48 @@ class yfcache:
                 
                 new_data.index.name = 'date'
                 # Transform to "Long" format: columns [date, ticker, price]
-
                 df_long = new_data.reset_index().melt(id_vars='date', var_name='ticker', value_name='price')
-                df_long = df_long.dropna(subset=['price']) # Drop non-trading days/NaNs
+                df_long.set_index(['date','ticker'], inplace=True) # set multiindex for later compare
                 
+                # create an empty df with just dates and populate with what we got from yf
+                date_range = pd.date_range(start=start_date, end=end_date, freq='D') # get dates
+                nandf = pd.DataFrame(index=date_range, columns=new_data.columns) # create df with dates and all the tickers we got               
+                nandf.index.name = 'date' # duplicate index just like new_data
+                # convert to long format so it maches nandf_long
+                nandf_long = nandf.reset_index().melt(id_vars='date', var_name='ticker', value_name='price')
+                nandf_long.set_index(['date','ticker'], inplace=True) # set multiindex on date and ticker so we can easily assign prices to the right date and ticker in the next step
+
+                # df_long and nandf_long have same structure. nandf has every date in selected range filled with Nan. We're going to assign whatever date we have in df_long and the end result will be that db_table will have every date in the selected range, but only the dates we got from yf will have prices, the rest will be NaN. This way we have a complete calendar in our database and can easily slice by any date range without worrying about missing dates.
+
+                db_table = nandf_long.copy() # Use .copy() to ensure db_table is a separate object
+                db_table.loc[nandf_long.index, nandf_long.columns] = df_long
+
+                # --- Validation Step ---
+                # 1. Filter source for valid prices, i.e. remove any row with NaN values 
+                df_valid = df_long.dropna(subset=['price'])
+                # 2. Compare against target; matching on index verifies date, ticker, and price
+                if (df_valid['price'] == db_table.loc[df_valid.index, 'price']).all():
+                    self.logger.info("Verification passed: all non-NaN trading day prices, dates, and tickers match.")
+                else:
+                    self.logger.error("Verification failed: mismatches detected in merged data.")
+
                 # Upsert into DuckDB
-                self.con.execute("INSERT OR REPLACE INTO prices SELECT * FROM df_long")
+                # self.con.execute("INSERT OR REPLACE INTO prices SELECT * FROM df_long")
+                db_table = db_table.reset_index() #DuckDB doesn't support multiindex so we need to reset index to get date and ticker back as columns
+                self.con.execute("INSERT OR REPLACE INTO prices SELECT * FROM db_table")
+
+        else: 
+            self.logger.info("Cache hit")
 
         # 3. Retrieve the final requested subset from the database
         placeholders = ', '.join(['?'] * len(ticker_list))
         query = f"""
             SELECT date, ticker, price FROM prices 
-            WHERE ticker IN ({placeholders}) AND date >= ? AND date < ?
+            WHERE ticker IN ({placeholders}) AND date >= ? AND date <= ?
         """
         params = ticker_list + [start_date, end_date]
-        results_df = self.con.execute(query, params).df()
+        # df_table = df_table.dropna(subset=['price']) # Drop non-trading days/NaNs
+        results_df = self.con.execute(query, params).df().dropna(subset=['price']) # Drop non-trading days/NaNs
 
         if results_df.empty:
             # Create the full calendar range requested by the user

@@ -12,6 +12,7 @@ cash accounts are always considered above their mda so worst case (i.e. all tick
 import pandas as pd
 import yfinance as yf
 import numpy as np
+import logging
 from datetime import datetime
 from pathlib import Path
 from yfcache import yfcache
@@ -26,7 +27,7 @@ def run_momda (
         'VTV', 'VUG', 'VIOV', 'VIOG', 'VEA', 'VWO', 'VNQ',
         'PDBC', 'IAU', 'EDV', 'VGIT', 'VCLT', 'BNDX'
     ],
-    start_date: str  = "2016-01-01",      # <-- your desired backtest start
+    start_date: str  = (datetime.today() - pd.Timedelta(weeks=532)).strftime("%Y-%m-%d"),# approx 10 yrs and 3 months go
     end_date: str    = datetime.today().strftime("%Y-%m-%d"),
     top_assets: int = 3, # how many top assets to balance?
     value_start: float = 100_000, # starting porfolio value
@@ -43,6 +44,15 @@ def run_momda (
     output_dir = Path(output_dir_param)
     output_dir.mkdir(exist_ok=True)
 
+    # Setup logging
+    logger = logging.getLogger(file_prefix)
+    logger.setLevel(logging.INFO)
+    if not logger.handlers:
+        formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+        for handler in [logging.FileHandler(f"{output_dir}/{file_prefix}.app.log", mode='a', encoding='utf-8'), logging.StreamHandler()]:
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+    logger.info(f"Starting MOMDA backtest with tickers: {tickers_param}, MDA lookback: {mda_param} days, top assets: {top_assets}, from {start_date} to {end_date}")
 
     # simple output to csv function
     def save_csv(
@@ -60,17 +70,20 @@ def run_momda (
     # DOWNLOAD WITH MOMENTUM LOOKBACK BUFFER
     # =============================================================================
     # Fix for the bug you spotted: pull extra history so 12-month momentum works from day 1
-    print("Downloading...")
     download_start = (pd.to_datetime(start_date) - pd.DateOffset(months=15)).strftime("%Y-%m-%d")
     cache = yfcache() # get our Yahoo data via caching - reduces api call guilt
-    data = cache.get( tickers_param, download_start, end_date, use_cache).final_df
+    dataget = cache.get( tickers_param, download_start, end_date, use_cache)
+    data = dataget.final_df
+    logger.info(f"DL tickers missed: {dataget.missed_tickers}, Needed starts: {dataget.needed_starts}")
 
     csvFileName = "yfdata"
     if verbose: save_csv(data,"yfdata")
 
     if mda_param > 0:  # if we're doing mda we'll need cash accounts
         if use_cache:
-            cash_df = cache.get( [cash_etf], download_start, end_date).final_df
+            cashget = cache.get( [cash_etf], download_start, end_date)
+            cash_df = cashget.final_df
+            logger.info(f"Cash Missed tickers: {cashget.missed_tickers}, Needed starts: {cashget.needed_starts}")
         else:
             cash_df = yf.download(
                 cash_etf,
@@ -118,8 +131,6 @@ def run_momda (
     mom_12 = data.pct_change(periods=252).resample("BME").last()   
 
     avg_momentum = (mom_3 + mom_6 + mom_12) / 3
-
-
 
     # =============================================================================
     # PORTFOLIO: top 3 equal-weighted each month (rebalance on month-end)
@@ -178,16 +189,17 @@ def run_momda (
             value.loc[month] = value_start / top_assets # divide up value by number of buckets
         else:  # all but the 1st row 
             # this monthy's value is last months shares * this month's price of last month's ticker adj close of those shares
-            value.loc[month] = shares.shift(1).loc[month].values * monthly_prices.loc[month][top_ticks.shift(1).loc[month]].values  # top_ticks.shift1 gets last month's tickers which then looks up this month's prices in monthly_prices   
+            value.loc[month] = shares.shift(1).loc[month].values * monthly_prices.loc[month][top_ticks.shift(1).loc[month]].values  # top_ticks.shift1 gets last month's tickers which then looks up this month's prices in monthly_prices  
         if any_changes[month] | (top_close.index.get_loc(month) == 0) : 
             # any changed tickers this month or are we on the 1st month?
             # yes, sell what we have and buy the new ones on this month's ticker's closing price
             shares.loc[month, share_cols] = value.loc[month].values / adj_close.values
+            logger.info(f"Changed tickers on {month.strftime('%Y-%m-%d')}") # log it
         else: 
             shares.loc[month] = shares.shift(1).loc[month] # no changes - just carry forward the shares we have
         pass
         if (value.loc[month].max() - value.loc[month].min()) / value.loc[month].min() >= rebalance_trigger:  # we hit the rebalance trigger
-            if verbose: print(f"Rebalancing on {month}")
+            logger.info(f"Rebalancing on {month.strftime('%Y-%m-%d')}") # log that we rebalanced this month
             value.loc[month] = value.loc[month].sum() / top_assets # evenly distribute value
             shares.loc[month, share_cols] = value.loc[month].values / adj_close.values # and buy the shares back
 
