@@ -55,12 +55,20 @@ class yfcache:
             
         # Ensure chronological order to prevent SQL BETWEEN and date_range failures
         s, e = sorted([start_date, end_date])
-        # if end_date is today then we'll change it to yesterday
-        if e == date.today().strftime("%Y-%m-%d"):
-            e = (date.today() - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-        # adjust s & e to start on a business day
-        s = pd.offsets.BDay().rollback(pd.to_datetime(s)).strftime("%Y-%m-%d")
-        e = pd.offsets.BDay().rollback(pd.to_datetime(e)).strftime("%Y-%m-%d")
+
+        # Convert to Timestamps to utilize pandas business day offsets
+        s_ts = pd.to_datetime(s)
+        e_ts = pd.to_datetime(e)
+
+        # If end_date is today or in the future, cap it at yesterday to ensure we only request completed days
+        if e_ts.date() >= pd.Timestamp.now().date():
+            e_ts = e_ts - pd.Timedelta(days=1)
+
+        # Ensure both dates are business days 
+        # start date rolls forward
+        s = pd.offsets.BusinessDay().rollforward(s_ts).strftime("%Y-%m-%d")
+        # end date rolls back 
+        e = pd.offsets.BusinessDay().rollback(e_ts).strftime("%Y-%m-%d")
         return ticker_list, tickers_key, s, e
     
     def get(self, ticker_list, start_date, end_date, skip_cache = False):
