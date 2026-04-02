@@ -118,34 +118,10 @@ class yfcache:
                 new_data.index.name = 'date'
                 # Transform to "Long" format: columns [date, ticker, price]
                 df_long = new_data.reset_index().melt(id_vars='date', var_name='ticker', value_name='price')
-                df_long.set_index(['date','ticker'], inplace=True) # set multiindex for later compare
-                
-                # create an empty df with just dates and populate with what we got from yf
-                date_range = pd.date_range(start=start_date, end=end_date, freq='D') # get dates
-                nandf = pd.DataFrame(index=date_range, columns=new_data.columns) # create df with dates and all the tickers we got               
-                nandf.index.name = 'date' # duplicate index just like new_data
-                # convert to long format so it maches nandf_long
-                nandf_long = nandf.reset_index().melt(id_vars='date', var_name='ticker', value_name='price')
-                nandf_long.set_index(['date','ticker'], inplace=True) # set multiindex on date and ticker so we can easily assign prices to the right date and ticker in the next step
-
-                # df_long and nandf_long have same structure. nandf has every date in selected range filled with Nan. We're going to assign whatever date we have in df_long and the end result will be that db_table will have every date in the selected range, but only the dates we got from yf will have prices, the rest will be NaN. This way we have a complete calendar in our database and can easily slice by any date range without worrying about missing dates.
-
-                db_table = nandf_long.copy() # Use .copy() to ensure db_table is a separate object
-                db_table.loc[nandf_long.index, nandf_long.columns] = df_long
-
-                # --- Validation Step ---
-                # 1. Filter source for valid prices, i.e. remove any row with NaN values 
-                df_valid = df_long.dropna(subset=['price'])
-                # 2. Compare against target; matching on index verifies date, ticker, and price
-                if (df_valid['price'] == db_table.loc[df_valid.index, 'price']).all():
-                    self.logger.info("Verification passed: all non-NaN trading day prices, dates, and tickers match.")
-                else:
-                    self.logger.error("Verification failed: mismatches detected in merged data.")
+                df_long = df_long.dropna(subset=['price']) # Drop non-trading days/NaNs
 
                 # Upsert into DuckDB
-                # self.con.execute("INSERT OR REPLACE INTO prices SELECT * FROM df_long")
-                db_table = db_table.reset_index() #DuckDB doesn't support multiindex so we need to reset index to get date and ticker back as columns
-                self.con.execute("INSERT OR REPLACE INTO prices SELECT * FROM db_table")
+                self.con.execute("INSERT OR REPLACE INTO prices SELECT * FROM df_long")
 
         else: 
             self.logger.info("Cache hit")
