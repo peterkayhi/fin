@@ -145,7 +145,7 @@ def run_momda (
     top_close = pd.DataFrame(index=avg_momentum.index, columns=price_cols)
 
 
-    for i in range(1, len(avg_momentum)):
+    for i in range(1, len(avg_momentum) + 1 ):  # doing +1 so we populate the last row
         # For each month starting from the second row (i=1), we look back at the previous month's momentum to determine the top tickers. 
         #
         # the len() function in panda returns the number of rows in avg_momentum, so the loop iterates through each month starting from the second one (since the first month has no prior momentum data). Inside the loop, we use .iloc[i-1] to access the previous month's momentum data, find the top 3 tickers with .nlargest(3), and then store the values for later use 
