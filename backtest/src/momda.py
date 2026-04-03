@@ -47,10 +47,11 @@ def run_momda (
 
     # Setup logging
     logger = logging.getLogger(file_prefix)
+    logdir = Path("/Users/peterkay/Downloads/logFiles")
     logger.setLevel(logging.INFO)
     if not logger.handlers:
         formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-        for handler in [logging.FileHandler(f"{output_dir}/{file_prefix}.app.log", mode='a', encoding='utf-8'), logging.StreamHandler()]:
+        for handler in [logging.FileHandler(f"{logdir}/{file_prefix}.app.log", mode='a', encoding='utf-8'), logging.StreamHandler()]:
             handler.setFormatter(formatter)
             logger.addHandler(handler)
     logger.info(f"Starting MOMDA backtest with tickers: {tickers_param}, MDA lookback: {mda_param} days, top assets: {top_assets}, from {start_date} to {end_date}")
