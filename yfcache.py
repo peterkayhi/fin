@@ -2,6 +2,7 @@ import yfinance as yf
 import pandas as pd
 import duckdb
 from datetime import date
+from pathlib import Path
 import os
 import logging
 from typing import NamedTuple, List
@@ -35,8 +36,9 @@ class yfcache:
             self.logger.setLevel(logging.INFO)
             self.logger.propagate = False  # Keep cache logs isolated from the root logger
             formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-            
-            for handler in [logging.FileHandler("/Users/peterkay/Downloads/backtestFiles/yfcache.app.log", mode='a', encoding='utf-8'), logging.StreamHandler()]:
+            log_dir = Path.home() / "Downloads" / "logFiles"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            for handler in [logging.FileHandler(log_dir / "yfcache.app.log", mode='a', encoding='utf-8'), logging.StreamHandler()]:
                 handler.setFormatter(formatter)
                 self.logger.addHandler(handler)
         self.logger.info(f"yfcache initialized with database at {db_path}")

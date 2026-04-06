@@ -38,7 +38,7 @@ def run_momda (
     file_prefix: str  = "momda",  # suffix gets appended to each csv file
     verbose: bool = False, # outputs lots of csv files along the way
     skip_cache: bool = False, # use the cache to minimize Yahoo api calls
-    output_dir_param: str  = "/Users/peterkay/Downloads/backtestFiles" # directory holding csvs
+    output_dir_param: str  = str(Path.home() / "Downloads" / "backtestFiles") # directory holding csvs
 ) -> None:
 
     # set/verify directory
@@ -47,7 +47,8 @@ def run_momda (
 
     # Setup logging
     logger = logging.getLogger(file_prefix)
-    logdir = Path("/Users/peterkay/Downloads/logFiles")
+    logdir = Path.home() / "Downloads" / "logFiles"
+    logdir.mkdir(parents=True, exist_ok=True)
     logger.setLevel(logging.INFO)
     if not logger.handlers:
         formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
