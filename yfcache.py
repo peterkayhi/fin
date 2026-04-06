@@ -124,7 +124,8 @@ class yfcache:
 
                 # Upsert into DuckDB
                 self.con.execute("INSERT OR REPLACE INTO prices SELECT * FROM df_long")
-
+            else: # we didn't get any data from the yfinance call
+                self.logger.warning(f"Empty df from yfinance from {download_start} to {today}. Pulling from available cache")
         else: 
             self.logger.info("Cache hit")
 
