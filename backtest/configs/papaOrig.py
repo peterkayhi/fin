@@ -12,7 +12,7 @@ CONFIG = {
         'VTV', 'VUG', 'VIOV', 'VIOG', 'VEA', 'VWO', 'VNQ',
         'PDBC', 'IAU', 'EDV', 'VGIT', 'VCLT', 'BNDX'
     ],
-    "file_prefix": "papaGEbal"
+    "file_prefix": "papaOrig"
 }
 
 
