@@ -25,7 +25,7 @@ pass
 
 if __name__ == "__main__":
     today_dt = date.today()
-    # today_dt = pd.to_datetime('2026-04-24').date() #temp test
+    today_dt = pd.to_datetime('2026-04-24').date() #temp test
     # weekday() returns 4 for Friday. 
     # It's the last Friday if adding 7 days changes the month.
     if today_dt.weekday() == 4 and (today_dt + timedelta(days=7)).month != today_dt.month:
