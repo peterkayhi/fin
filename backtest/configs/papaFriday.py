@@ -31,4 +31,4 @@ if __name__ == "__main__":
     if today_dt.weekday() == 4 and (today_dt + timedelta(days=7)).month != today_dt.month:
         run_momda(**CONFIG)
     else:
-        print(f"Today in history: {today}")
+        print(f"Today in history: {today_dt.strftime('%B %-d')}")
