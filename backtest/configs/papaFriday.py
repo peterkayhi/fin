@@ -21,7 +21,7 @@ CONFIG = {
     "file_prefix": f"papaLatest{today.replace('-', '')}"
 }
 
-
+pass
 
 if __name__ == "__main__":
     today_dt = date.today()
