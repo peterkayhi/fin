@@ -212,3 +212,7 @@ poetry.toml
 pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
+
+# pk additions
+# uv messes with other configs
+uv.lock
