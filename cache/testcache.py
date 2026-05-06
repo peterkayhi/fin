@@ -16,9 +16,13 @@ from datetime import datetime
 # Example script using yfcache class
 cache = yfcache()
 
-tickers=['AAPL', 'VIOV']
-startd="2019-09-12"
-endd="2019-12-31"
+tickers = [
+    'VTV', 'VUG', 'VIOV', 'VIOG', 'VEA', 'VWO', 'VNQ',
+    'PDBC', 'IAU', 'EDV', 'VGIT', 'VCLT', 'BNDX'
+]
+
+startd="2026-03-28" # test weekend logic
+endd=datetime.today().strftime("%Y-%m-%d")
 skip_cache = True
 timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M")
 csvfile = f"/Users/peterkay/Downloads/csv/yfdl{timestamp}.csv"
@@ -47,16 +51,17 @@ print("\n\n")
 
 print("*** Comparisons ***")
 print(f"cached matches skip_cache?{same_result(skip_result, cache_result)}")
+# generates error below - different size frames. need to figure out what do to here - have it so that cache.get results essentially identical yahoo frame, or include all the NaN values.  perhaps do the NaN conversions internally to keep the caching consistent and high performing but remove all Nan values when returning back to Yahoo, like in the original code. 
 print(f"skip_cache matches Yahoo?{(skip_result.final_df.values == dfy.values).all()}")
 print(f"cache matches Yahoo?{(cache_result.final_df.values == dfy.values).all()}")
 print(f"TEST: TRUE after cache matches skip_cache?{same_result(skip_result, after_cache)}")
 print("\n\n")
 
 print("*** Differences ***")
-print(f"Diff skip_cache:dfy {(abs(skip_result.final_df - dfy) / skip_result.final_df).sum()}")
-print(f"Diff cached:dfy {(abs(cache_result.final_df - dfy) / cache_result.final_df).sum()}")
-print(f"Diff cached:skip_cache {(abs(cache_result.final_df.values - skip_result.final_df.values) / cache_result.final_df.values).sum()}")
-print(f"after cache:skip_cache {(abs(after_cache.final_df.values - skip_result.final_df.values) / after_cache.final_df.values).sum()}")
+print(f"Diff skip_cache:dfy {(abs(skip_result.final_df - dfy) / skip_result.final_df).sum().sum()}")
+print(f"Diff cached:dfy {(abs(cache_result.final_df - dfy) / cache_result.final_df).sum().sum()}")
+print(f"Diff cached:skip_cache {(abs(cache_result.final_df.values - skip_result.final_df.values) / cache_result.final_df.values).sum().sum()}")
+print(f"after cache:skip_cache {(abs(after_cache.final_df.values - skip_result.final_df.values) / after_cache.final_df.values).sum().sum()}")
 print("\n\n")
 
 pass

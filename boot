@@ -1,1 +1,1 @@
-source /Users/peterkay/Developer/fin/.venv/bin/activate
+source .venv/bin/activate
