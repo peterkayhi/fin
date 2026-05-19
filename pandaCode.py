@@ -244,6 +244,9 @@ row_df = df.iloc[[n]]     # note the double brackets
 row = df.loc["2025-06-30"]               # exact date
 row = df.loc["2025-06-01":"2025-06-30"]  # range
 
+# return the integer position of the row where date is 2025-06-30
+row_pos = df.index.get_loc("2025-06-30")  # returns integer position of the row with that date
+
 # To get the 3 largest closing prices (and their tickers) from a pandas DataFrame with many tickers as columns and dates as rows (using adjusted close via yfinance):
 import yfinance as yf
 import pandas as pd
