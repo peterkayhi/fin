@@ -1,12 +1,6 @@
 """ 
 momda - forked papaSrc and added moving day average logic
 
-big difference from Papa bear:
-
-adds "money market" ticker for each bucket (e.g. 3 money markets) to whatever the ticker list is
-in momentum computation pick the top three that are also above their MDA
-cash accounts are always considered above their mda so worst case (i.e. all tickers are below their mda) all money will go to cash for that month
-
 """
 
 import pandas as pd
@@ -184,24 +178,65 @@ def run_momda (
 
     if verbose: save_csv(any_changes,"anyChanges")
 
-    for month, adj_close in top_close.iterrows(): # iterate through top_close df, month holds the index (the date and row holds the series (row) of top_close
-        if top_close.index.get_loc(month) == 0 : # are we on 1st row
-            value.loc[month] = value_start / top_assets # divide up value by number of buckets
-        else:  # all but the 1st row 
-            # this monthy's value is last months shares * this month's price of last month's ticker adj close of those shares
-            value.loc[month] = shares.shift(1).loc[month].values * monthly_prices.loc[month][top_ticks.shift(1).loc[month]].values  # top_ticks.shift1 gets last month's tickers which then looks up this month's prices in monthly_prices  
-        if any_changes[month] | (top_close.index.get_loc(month) == 0) : 
-            # any changed tickers this month or are we on the 1st month?
-            # yes, sell what we have and buy the new ones on this month's ticker's closing price
-            shares.loc[month, share_cols] = value.loc[month].values / adj_close.values
-            logger.info(f"Changed tickers on {month.strftime('%Y-%m-%d')}") # log it
-        else: 
-            shares.loc[month] = shares.shift(1).loc[month] # no changes - just carry forward the shares we have
-        pass
-        if (value.loc[month].max() - value.loc[month].min()) / value.loc[month].min() >= rebalance_trigger:  # we hit the rebalance trigger
-            logger.info(f"Rebalancing on {month.strftime('%Y-%m-%d')}") # log that we rebalanced this month
-            value.loc[month] = value.loc[month].sum() / top_assets # evenly distribute value
-            shares.loc[month, share_cols] = value.loc[month].values / adj_close.values # and buy the shares back
+    for month, row_adj_close in top_close.iterrows():
+        i = top_close.index.get_loc(month)
+        if i == 0:
+            value.loc[month] = value_start / top_assets
+            shares.loc[month, share_cols] = value.loc[month].values / row_adj_close.values
+            logger.info(f"Initial allocation on {month.strftime('%Y-%m-%d')}")
+        else:
+            prev_month = top_close.index[i-1]
+            p_ticks = top_ticks.loc[prev_month]
+            p_shares = shares.loc[prev_month]
+            c_ticks = top_ticks.loc[month]
+            
+            # Mark-to-market: value of last month's holdings at current prices
+            # These are the proceeds available from each bucket
+            mtm_prev_vals = p_shares.values * monthly_prices.loc[month][p_ticks.values].values
+            
+            temp_shares = pd.Series(index=share_cols, dtype=float)
+            temp_values = pd.Series(index=val_cols, dtype=float)
+            
+            used_prev_idx = [] # track which old buckets are preserved
+            
+            # Pass 1: Handle tickers that are still in the top list (same or different bucket)
+            for k in range(top_assets):
+                curr_ticker = c_ticks.iloc[k]
+                if curr_ticker in p_ticks.values:
+                    prev_idx = list(p_ticks.values).index(curr_ticker)
+                    temp_shares.iloc[k] = p_shares.iloc[prev_idx]
+                    temp_values.iloc[k] = mtm_prev_vals[prev_idx]
+                    used_prev_idx.append(prev_idx)
+            
+            # Pass 2: Handle rotations (new tickers) using capital from dropped tickers
+            unused_prev_idx = [idx for idx in range(top_assets) if idx not in used_prev_idx]
+            
+            for k in range(top_assets):
+                if pd.isna(temp_shares.iloc[k]):
+                    # This bucket has a new ticker. Find a funding bucket from those that dropped out.
+                    # Preference: same bucket index if available (per your example)
+                    if k in unused_prev_idx:
+                        funding_idx = k
+                        unused_prev_idx.remove(k)
+                    else:
+                        funding_idx = unused_prev_idx.pop(0)
+                    
+                    temp_values.iloc[k] = mtm_prev_vals[funding_idx]
+                    temp_shares.iloc[k] = temp_values.iloc[k] / row_adj_close.iloc[k]
+            
+            value.loc[month] = temp_values.values
+            shares.loc[month] = temp_shares.values
+            
+            if any_changes[month]:
+                logger.info(f"Ticker rotation on {month.strftime('%Y-%m-%d')}")
+
+        # Rebalance check: if drift exceeds trigger, reset buckets to equal weights
+        current_vals = value.loc[month]
+        if (current_vals.max() - current_vals.min()) / current_vals.min() >= rebalance_trigger:
+            logger.info(f"Rebalancing on {month.strftime('%Y-%m-%d')}")
+            total_val = current_vals.sum()
+            value.loc[month] = total_val / top_assets
+            shares.loc[month, share_cols] = value.loc[month].values / row_adj_close.values
 
     if verbose: save_csv(value,"value")
     if verbose: save_csv(shares,"shares")
