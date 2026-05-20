@@ -240,16 +240,44 @@ def run_momda (
             shares.loc[month] = temp_shares.values
             
             if any_changes[month]:
-                logger.info(f"Ticker rotation on {month.strftime('%Y-%m-%d')}")
+                logger.info(f"Tickers changed on {month.strftime('%Y-%m-%d')}")
 
         # Rebalancing: Check if the value distribution has drifted too far from equal weighting
-        current_vals = value.loc[month]
+        current_vals = value.loc[month].astype(float)
+        # Check if the percentage difference between the maximum and minimum bucket values exceeds the rebalance_trigger.
+        # The formula (max - min) / min calculates the percentage difference relative to the smallest value.
         if (current_vals.max() - current_vals.min()) / current_vals.min() >= rebalance_trigger:
-            logger.info(f"Rebalancing on {month.strftime('%Y-%m-%d')}")
-            # Liquidate all buckets and redistribute the total portfolio value equally
-            total_val = current_vals.sum()
-            value.loc[month] = total_val / top_assets
-            # Buy back shares of the same tickers at current prices to achieve equal weight
+            # Log that a minimal rebalancing event is occurring, including the date.
+            logger.info(f"Rebalancing on {month.strftime('%Y-%m-%d')} (Minimal)")
+            
+            # Iteratively move capital from the highest value bucket to the lowest value bucket 
+            # until the difference between any two assets is within the trigger threshold.
+            # This loop attempts to converge on the desired distribution. A safety limit (100 iterations)
+            # is set to prevent infinite loops in case of floating-point precision issues or complex scenarios.
+            for _ in range(100): # Safety limit to prevent infinite loops
+                # Identify the ticker (column label) with the maximum value in the current portfolio.
+                v_max_label = current_vals.idxmax()
+                # Identify the ticker (column label) with the minimum value in the current portfolio.
+                v_min_label = current_vals.idxmin()
+                
+                # Check if the current difference between the max and min values is already within the trigger.
+                # A small epsilon (1e-9) is added for floating-point comparison robustness.
+                if (current_vals[v_max_label] - current_vals[v_min_label]) / current_vals[v_min_label] <= rebalance_trigger + 1e-9:
+                    # If the condition is met, the rebalancing is complete for this month, so break the loop.
+                    break
+                
+                # Calculate the exact amount (delta) to move so that: (max - delta) = (min + delta) * (1 + trigger)
+                # This formula ensures that after moving 'delta', the new max value is (1 + rebalance_trigger) times the new min value.
+                delta = (current_vals[v_max_label] - current_vals[v_min_label] * (1 + rebalance_trigger)) / (2 + rebalance_trigger)
+                # Decrease the value of the over-weighted asset by 'delta'.
+                current_vals[v_max_label] -= delta
+                # Increase the value of the under-weighted asset by 'delta'.
+                current_vals[v_min_label] += delta
+
+            # Update the portfolio 'value' DataFrame for the current month with the newly rebalanced values.
+            value.loc[month] = current_vals
+            # Update share counts to reflect the adjusted values
+            # Recalculate the number of shares for each asset based on their new rebalanced values and current closing prices.
             shares.loc[month, share_cols] = value.loc[month].values / row_adj_close.values
 
     if verbose: save_csv(value,"value")
