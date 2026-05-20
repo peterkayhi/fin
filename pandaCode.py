@@ -247,6 +247,27 @@ row = df.loc["2025-06-01":"2025-06-30"]  # range
 # return the integer position of the row where date is 2025-06-30
 row_pos = df.index.get_loc("2025-06-30")  # returns integer position of the row with that date
 
+import pandas as pd
+
+df = pd.DataFrame({
+    'sales': [100, 200, 150],
+    'profit': [20, 35, 25]
+}, index=['Jan', 'Feb', 'Mar'])
+
+month = 'Feb'
+
+X = df.loc[month]           # the row as Series
+y = df.index.get_loc(month) # ← this is what you want
+
+print(y)                    # 1
+print(df.iloc[y])           # same as X
+
+# If you already have the row Series X:
+y = df.index.get_loc(X.name)          # works if index has names
+
+# For multiple labels at once:
+positions = [df.index.get_loc(m) for m in ['Jan', 'Mar']]
+
 # To get the 3 largest closing prices (and their tickers) from a pandas DataFrame with many tickers as columns and dates as rows (using adjusted close via yfinance):
 import yfinance as yf
 import pandas as pd

@@ -180,7 +180,7 @@ def run_momda (
 
     # Main simulation loop: Iterate through each month and its target ticker prices
     for month, row_adj_close in top_close.iterrows():
-        i = top_close.index.get_loc(month)
+        i = top_close.index.get_loc(month) # get row of current month
         # Handle the start of the backtest
         if i == 0:
             # Distribute initial capital equally across all buckets
@@ -190,10 +190,10 @@ def run_momda (
             logger.info(f"Initial allocation on {month.strftime('%Y-%m-%d')}")
         else:
             # Process subsequent months: identify previous holdings and current targets
-            prev_month = top_close.index[i-1]
-            p_ticks = top_ticks.loc[prev_month]
-            p_shares = shares.loc[prev_month]
-            c_ticks = top_ticks.loc[month]
+            prev_month = top_close.index[i-1] #previous month top closing prices
+            p_ticks = top_ticks.loc[prev_month] # previous top tickers
+            p_shares = shares.loc[prev_month] # previous shares held 
+            c_ticks = top_ticks.loc[month] # current top tickers 
             
             # Mark-to-Market: Calculate the current value of last month's shares at today's prices
             # mtm_prev_vals represents the "cash proceeds" available from each previous bucket
@@ -208,31 +208,32 @@ def run_momda (
             # Pass 1: Preserve tickers that remain in the 'top_assets' list
             for k in range(top_assets):
                 curr_ticker = c_ticks.iloc[k]
-                if curr_ticker in p_ticks.values:
+                if curr_ticker in p_ticks.values: #current ticker in previous top tickers? 
                     # Find where this ticker was located last month
-                    prev_idx = list(p_ticks.values).index(curr_ticker)
-                    # Move existing shares and their current value to the new bucket position k
-                    temp_shares.iloc[k] = p_shares.iloc[prev_idx]
+                    prev_idx = list(p_ticks.values).index(curr_ticker) # find position of curr_ticker inside prev month ticks. list() converts numpy array into std python list
+                    # Move existing shares from that preivous position and their current value to the new bucket position k
+                    temp_shares.iloc[k] = p_shares.iloc[prev_idx] 
                     temp_values.iloc[k] = mtm_prev_vals[prev_idx]
-                    used_prev_idx.append(prev_idx)
+                    used_prev_idx.append(prev_idx) # and remember this position has been used. 
+            pass # by end of loop we've saved (in used_prev_idx)which positions had existing tickers,  identified all tickers that exist in both months and we've moved their shares and values to their corresponding buckets in this month.  e.g. if ticker IAU was in position 2 last month and it's in position 1 this month, we've moved the shares and values from bucket 2 to bucket 1.           
             
             # Pass 2: Fill buckets for new tickers (rotations) using capital from dropped tickers
-            unused_prev_idx = [idx for idx in range(top_assets) if idx not in used_prev_idx]
+            unused_prev_idx = [idx for idx in range(top_assets) if idx not in used_prev_idx] # create a list of unused buckets from previous loop, i.e. tickers that existed in previous month but in current one - and we'll use that capital to buy this month's top tickers that weren't in last month's top.
             
             for k in range(top_assets):
                 if pd.isna(temp_shares.iloc[k]):
                     # If this bucket is empty, a rotation is required. 
                     # Preference: use capital from the same bucket index if it was dropped.
-                    if k in unused_prev_idx:
-                        funding_idx = k
-                        unused_prev_idx.remove(k)
+                    if k in unused_prev_idx:  # is this an unused bucket?
+                        funding_idx = k # we'll take it. 
+                        unused_prev_idx.remove(k) # and remove it from the list so we don't use it again
                     else:
                         # Otherwise, take capital from the first available dropped ticker bucket.
-                        funding_idx = unused_prev_idx.pop(0)
+                        funding_idx = unused_prev_idx.pop(0) # pop off top of stack 
                     
                     # Reinvest the proceeds from the dropped ticker into the new ticker
-                    temp_values.iloc[k] = mtm_prev_vals[funding_idx]
-                    temp_shares.iloc[k] = temp_values.iloc[k] / row_adj_close.iloc[k]
+                    temp_values.iloc[k] = mtm_prev_vals[funding_idx] # value of dropped ticker from last month 
+                    temp_shares.iloc[k] = temp_values.iloc[k] / row_adj_close.iloc[k] # buy shares of new ticker at current price
             
             # Update final DataFrames with the results of Pass 1 and Pass 2
             value.loc[month] = temp_values.values
