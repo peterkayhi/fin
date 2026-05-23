@@ -11,8 +11,7 @@ from backtest.src.momda import run_momda
 CONFIG = {
     # avantis "tickers_param": ["AVUS", "AVLV", "AVSC", "AVUV"],
     "tickers_param": ["SPY"],
-    "mda_param": 200,
-    "file_prefix": "spyMDA"
+    "file_prefix": "spyOnly"
 }
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ from backtest.src.momda import run_momda
 
 CONFIG = {
     "tickers_param": ["VOO", "VT", "TLT", "BND", "VNQ", "TIP", "VTIP", "GLD"],
-    "file_prefix": "raysAssetsL"
+    "file_prefix": "raysAssets"
 }
 
 if __name__ == "__main__":

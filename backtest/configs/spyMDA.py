@@ -13,8 +13,7 @@ CONFIG = {
     # avantis "tickers_param": ["AVUS", "AVLV", "AVSC", "AVUV"],
     "tickers_param": ['SPY'],
     "mda_param": 200,
-    "top_count": 1, # only 1 ticker this time. 
-    "file_prefix": "spyTest200mda"
+    "file_prefix": "spyMda"
 }
 
 if __name__ == "__main__":

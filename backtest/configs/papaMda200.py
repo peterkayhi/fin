@@ -15,7 +15,7 @@ CONFIG = {
     ],
     "mda_param": 200,
     "cash_etf": "TIP",
-    "file_prefix": "papaOrigMdaTip"
+    "file_prefix": "papaMda200"
 }
 
 
