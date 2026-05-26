@@ -27,6 +27,7 @@ def run_momda (
     top_assets: int = 3, # how many top assets to balance?
     value_start: float = 100_000, # starting porfolio value
     rebalance_trigger: float  = .2, # what's the biggest bucket delta we'll take before we rebalance
+    rebalance_target: float  = .1, # when rebalancing, what's the target to get to?
     mda_param: int = 0, # non-zero values kick in the days to compute moving average
     cash_etf: str = 'BIL',
     file_prefix: str  = "momda",  # suffix gets appended to each csv file
@@ -248,7 +249,7 @@ def run_momda (
         # The formula (max - min) / min calculates the percentage difference relative to the smallest value.
         if (current_vals.max() - current_vals.min()) / current_vals.min() >= rebalance_trigger:
             # Log that a minimal rebalancing event is occurring, including the date.
-            logger.info(f"Rebalancing on {month.strftime('%Y-%m-%d')} (Minimal)")
+            logger.info(f"Rebalancing on {month.strftime('%Y-%m-%d')}")
             
             # Iteratively move capital from the highest value bucket to the lowest value bucket 
             # until the difference between any two assets is within the trigger threshold.
@@ -262,13 +263,13 @@ def run_momda (
                 
                 # Check if the current difference between the max and min values is already within the trigger.
                 # A small epsilon (1e-9) is added for floating-point comparison robustness.
-                if (current_vals[v_max_label] - current_vals[v_min_label]) / current_vals[v_min_label] <= rebalance_trigger + 1e-9:
+                if (current_vals[v_max_label] - current_vals[v_min_label]) / current_vals[v_min_label] <= rebalance_target + 1e-9:
                     # If the condition is met, the rebalancing is complete for this month, so break the loop.
                     break
                 
-                # Calculate the exact amount (delta) to move so that: (max - delta) = (min + delta) * (1 + trigger)
+                # Calculate the exact amount (delta) to move so that: (max - delta) = (min + delta) * (1 + target)
                 # This formula ensures that after moving 'delta', the new max value is (1 + rebalance_trigger) times the new min value.
-                delta = (current_vals[v_max_label] - current_vals[v_min_label] * (1 + rebalance_trigger)) / (2 + rebalance_trigger)
+                delta = (current_vals[v_max_label] - current_vals[v_min_label] * (1 + rebalance_target)) / (2 + rebalance_target)
                 # Decrease the value of the over-weighted asset by 'delta'.
                 current_vals[v_max_label] -= delta
                 # Increase the value of the under-weighted asset by 'delta'.
