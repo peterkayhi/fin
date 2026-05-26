@@ -302,10 +302,7 @@ def run_momda (
     today_report["Avg Momentum"] = today_report["Avg Momentum"].map("{:.2f}%".format)
     # twist it around to get more of a report look 
 
-    pass
-    
-    # today_report = avg_daily_momentum.reset_index().melt(id_vars='Date', var_name='Ticker', value_name='Avg').set_index('Date')
-    # today_report = today_report.loc[pd.to_datetime(data.iloc[-1].name)].sort_values('Avg', ascending=False)  # last day only
+
     #===========
     # finalize data for copy/paste friendly format
 
@@ -318,7 +315,43 @@ def run_momda (
     logger.info(f"Exporting Values to {file_prefix}{csvFileName}.csv")
     save_csv(copy_paste,"CopyPaste")
 
+    #====================
+    # create a stats df
+    # Calculate monthly percentage returns and drop the first NaN value
+    returns = copy_paste.pct_change().dropna()
+    # Calculate the running peak value of the portfolio for drawdown analysis
+    cum_max = copy_paste.cummax()
+    # Calculate monthly drawdowns as the percentage decline from the running peak
+    drawdowns = (copy_paste / cum_max) - 1
+    # Calculate the total number of years in the backtest for annualization
+    n_years = (copy_paste.index[-1] - copy_paste.index[0]).days / 365.25
+
+    # Construct the PortStats DataFrame with key risk and return metrics
+    port_stats = pd.DataFrame({
+        f"{file_prefix}": [ #set the column name to the file prefix for easy identification
+            returns.std() * np.sqrt(12), # Annualized Standard Deviation
+            np.sqrt(np.mean(drawdowns**2)), # Ulcer Index: Root Mean Square of drawdowns
+            (returns.mean() * 12) / (returns.std() * np.sqrt(12)), # Annualized Sharpe Ratio (assuming 0% risk-free rate)
+            (1 - (cum_max / copy_paste)).min(), # Maximum Drawdown using the specific requested formula
+            (copy_paste.iloc[-1] / copy_paste.iloc[0]) ** (1 / n_years) - 1 # Compound Annual Growth Rate (CAGR)
+        ]
+    }, index=[
+        "Standard Deviation",
+        "Ulcer Index",
+        "Sharpe Ratio",
+        "Maximum Drawdown",
+        "CAGR"
+    ])
+    # Save the statistics to a CSV file named PortStats
+    save_csv(port_stats, "PortStats")
+
+    #==============
+    # print the today report
     logger.info(f"Asset Mix on {last_day.strftime('%m/%d/%Y')} Closing:")
     logger.info(today_report)
-    
+    # now save to csv
+
+    today_report.index.name = f"{file_prefix}:{last_day.strftime('%m/%d/%Y')}" # give index a good label
+    save_csv(today_report, "TodayReport")
+
     logger.info("Done!")
