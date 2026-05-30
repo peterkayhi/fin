@@ -14,9 +14,10 @@ CONFIG = {
         'VTV', 'VUG', 'VIOV', 'VIOG', 'VEA', 'VWO', 'VNQ',
         'PDBC', 'IAU', 'EDV', 'VGIT', 'VCLT', 'BNDX'
     ],
-    "start_date": (date.today() - pd.DateOffset(months=2)).strftime("%Y-%m-%d"), # 6 months ago
+    "start_date": (date.today() - pd.DateOffset(months=2)).strftime("%Y-%m-%d"), # 2 months ago
     # usually defaults to last business momth end 
     "end_date": today, # today
+    "skip_cache": True, # we want live data so make sure we're getting latest
     "verbose": False,
     "file_prefix": f"papaLatest{today.replace('-', '')}"
 }

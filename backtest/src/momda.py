@@ -99,8 +99,8 @@ def run_momda (
     else: # we're not doing mda
         above_mda = data != None # set the mask to all true so nothing gets affected
     above_mda = above_mda.resample("BME").last().dropna(how="all") # we'll only need the month-end mask
-    pass
-    
+    if not above_mda.empty and above_mda.index[-1] > data.index[-1]:
+        above_mda = above_mda.iloc[:-1]
 
     # =============================================================================
     # Resample to month-end last trading day
@@ -109,10 +109,10 @@ def run_momda (
     # .resample is an intermediate step to ensure we have clean month-end data for momentum calculations and rebalancing - you have to add an aggregation method like .last() to get a single price per month, and dropna to handle any missing data at month-ends. how="all" means it will only drop rows where all columns are NaN, which is what we want in case some tickers have missing data but others don't.
     # use BME instead of ME to get the last business day of the month, which is more accurate for trading purposes since the actual month-end might be a weekend or holiday. BME stands for Business Month End.
     monthly_prices = data.resample("BME").last().dropna(how="all")
+    if not monthly_prices.empty and monthly_prices.index[-1] > data.index[-1]:
+        monthly_prices = monthly_prices.iloc[:-1]
 
-    if verbose: save_csv(monthly_prices,"monthPrices")
-
-    # monthly_prices.to_csv("/Users/peterkay/Downloads/backtestFiles/papa_bear_monthly_prices.csv") # save monthly data for debugging
+    if verbose: save_csv(monthly_prices,"monthPrices") # save monthly data for debugging
 
     # =============================================================================
     # PAPA BEAR MOMENTUM: average of 3/6/12-month returns
@@ -124,6 +124,8 @@ def run_momda (
     # =============================================================================    
     # Calculate momentum for each period and average them
     mom_list = [data.pct_change(periods=d).resample("BME").last() for d in mom_days]
+    # Trim partial months from momentum to align with price data
+    mom_list = [m.iloc[:-1] if not m.empty and m.index[-1] > data.index[-1] else m for m in mom_list]
     avg_momentum = sum(mom_list) / len(mom_days)
 
     # =============================================================================
