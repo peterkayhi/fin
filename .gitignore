@@ -216,3 +216,4 @@ pyrightconfig.json
 # pk additions
 # uv messes with other configs
 uv.lock
+.DS_Store
